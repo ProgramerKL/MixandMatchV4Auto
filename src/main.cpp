@@ -20,8 +20,8 @@ motor LeftMotor = motor(PORT11, false);
 motor RightMotor = motor(PORT5, true);
 // motor motor2 = motor(PORT2, true);
 touchled touchled5 = touchled(PORT9);
-motor BackArmMotor1 = motor(PORT12, false);
-motor BackArmMotor2 = motor(PORT6, true);
+motor BackArmMotor1 = motor(PORT12, true);
+motor BackArmMotor2 = motor(PORT6, false);
 motor_group BackArmMotorGroup = motor_group(BackArmMotor1, BackArmMotor2);
 motor FrontArmMotor1 = motor(PORT10, false);
 motor FrontArmMotor2 = motor(PORT2, true);
@@ -30,8 +30,8 @@ pneumatic P1 = pneumatic(PORT3);
 // from front view left
 pneumatic P2 = pneumatic(PORT4);
 pneumatic P3 = pneumatic(PORT11);
-float kp = 0.96;
-int velocity = 60;
+float kp = 0.66;   // 0.6
+int velocity = 70; // 60
 float Rmotorspeed, Lmotorspeed, Rightstick, Leftstick, deadband = 10;
 bool crawlmodestate;
 bool isfrontclawrightopen;
@@ -107,16 +107,16 @@ void pumpon() {
   P2.pumpOn();
   // P3.pumpOn();
 }
-void extendclawbalancer() { P2.retract(cylinder1); }
-void retractclawbalancer() { P2.extend(cylinder1); }
+// void extendclawbalancer() { P2.retract(cylinder1); }
+// void retractclawbalancer() { P2.extend(cylinder1); }
 
 void extendpusher() { P1.extend(cylinder2); }
 void retractpusher() { P1.retract(cylinder2); }
 
-void frontclawleftclose() { P1.retract(cylinder2); }
+void frontclawleftclose() { P2.extend(cylinder1); }
 
 void frontclawleftopen() {
-  P1.extend(cylinder2);
+  P2.retract(cylinder1);
   isfrontclawleftopen = true;
 }
 
@@ -132,6 +132,10 @@ void frontclawrightopen() {
 void frontclawopen() {
   frontclawleftopen();
   frontclawrightopen();
+}
+void frontclawclose() {
+  frontclawleftclose();
+  frontclawrightclose();
 }
 
 void closefinger() {
@@ -223,10 +227,10 @@ void fingercontrol() {
 }
 
 void frontarmgodownforbeam() {
-  spinbackarmup();
+  frontarmmotorgroup.spin(forward);
   wait(0.45, seconds);
-  BackArmMotorGroup.setStopping(hold);
-  backarmstop();
+  frontarmmotorgroup.setStopping(hold);
+  frontarmmotorgroup.stop();
 }
 void backarmgodownforbeam() {
   spinbackarmdown();
@@ -243,34 +247,45 @@ void backarmgodownforbeam() {
 }
 
 void dumppinsontobeam() {
-  retractclawbalancer();
+  // if (isclawgrabbed) {
+  //   frontclawleftclose();
+  //   frontclawrightclose();
+  //   wait(0.1, seconds);
+  // }
   closefinger();
   eventbackarmgodownforbeam.broadcast();
   movefrontclawup();
   frontarmmotorgroup.setVelocity(100, percent);
-  while (frontarmmotorgroup.position(degrees) < 480) { // 625
+  while (frontarmmotorgroup.position(degrees) < 450) { // 625
     wait(20, msec);
   }
   frontarmmotorgroup.setStopping(brake);
-  frontarmmotorgroup.setVelocity(100, percent);
-  retractclawbalancer();
-  while (frontarmmotorgroup.position(degrees) < 735) { // 740
+  frontarmmotorgroup.setVelocity(20, percent);
+  frontarmmotorgroup.setTimeout(1.5, seconds);         // 1.25
+  while (frontarmmotorgroup.position(degrees) < 500) { // 780
     wait(20, msec);
   }
-  wait(0.2, seconds);
+  frontarmmotorgroup.setStopping(coast);
+  frontclawstop();
+
+  wait(0.35, seconds);
   frontclawopen();
-  extendclawbalancer();
-  frontclawstop();
+  wait(0.1, seconds);
+  // wait(1, seconds);
+  // wait(4.5, seconds);
+  // isclawgrabbed = true;
   frontarmmotorgroup.setVelocity(100, percent);
-  movefrontclawdown();
-  while (frontarmmotorgroup.position(degrees) > 5) {
+  // BackArmMotorGroup.spinToPosition(30, degrees, false);
+  frontarmmotorgroup.spin(reverse);
+  while (frontarmmotorgroup.position(degrees) > 0) {
     wait(20, msec);
   }
-  extendclawbalancer();
-  frontarmmotorgroup.setStopping(brake);
+  Brain.playSound(siren);
   frontclawleftopen();
-  isfrontclawup = true;
+  frontclawrightopen();
+  frontarmmotorgroup.setStopping(brake);
   frontclawstop();
+  isfrontclawup = false;
 }
 
 // ==============================================================================
@@ -403,10 +418,9 @@ void stackpins() {
   LeftMotor.setStopping(brake);
   RightMotor.setStopping(brake);
   if (isfrontclawup) {
-    extendclawbalancer();
     movefrontclawdown();
     wait(0.1, seconds);
-    frontarmmotorgroup.spinToPosition(130, degrees, true);
+    frontarmmotorgroup.spinToPosition(95, degrees, true);
     frontclawopen();
     frontarmmotorgroup.spinToPosition(0, degrees, true);
     frontclawstop();
@@ -415,10 +429,10 @@ void stackpins() {
     // wait(0.25, seconds);
     isclawsensorsdetecting = true;
   } else {
-    extendclawbalancer();
+
     isclawsensorsdetecting = false;
     movefrontclawup();
-    while (FrontArmMotor1.position(degrees) < 255) {
+    while (FrontArmMotor1.position(degrees) < 165) {
       wait(20, msec);
     }
     frontclawstop();
@@ -449,14 +463,12 @@ void grabstartingpin() {
     frontclawopen();
     frontarmmotorgroup.setVelocity(100, percent);
     frontarmmotorgroup.setStopping(hold);
-    retractclawbalancer();
     frontarmmotorgroup.spinToPosition(102.5, degrees, true);
     frontarmmotorgroup.setStopping(coast);
     frontarmmotorgroup.stop();
   } else {
     printf("in func second\n");
     retractguide();
-    extendclawbalancer();
     frontarmmotorgroup.setVelocity(100, percent);
     frontclawleftclose();
     frontarmmotorgroup.spinToPosition(325, degrees, false);
@@ -487,7 +499,6 @@ void stackpinsontostandoff() {
     movefrontclawup();
     LeftMotor.setStopping(brake);
     RightMotor.setStopping(brake);
-    extendclawbalancer();
     while (FrontArmMotor1.position(degrees) < 345) { // 300
       wait(20, msec);
     }
@@ -559,9 +570,6 @@ void buttonlogic() {
   if (Controller.ButtonFUp.pressing()) {
     backarmcontrol();
   }
-  if (Controller.ButtonR3.pressing()) {
-    extendclawbalancer();
-  }
   if (Controller.ButtonEUp.pressing()) {
     dumppinsontobeam();
   }
@@ -617,50 +625,27 @@ void disconnectionfunc() {
   }
 }
 
-bool c1(int velocity, float distance) {
-  if (velocity > 0) {
-    if (LeftMotor.position(degrees) < distance) {
-      return true;
-    } else {
-      return false;
-    }
-  } else {
-    if (LeftMotor.position(degrees) > distance * -1) {
-      return true;
-    } else {
-      return false;
-    }
-  }
+bool hasNotReachedDistance(int velocity, float distance) {
+  if (velocity > 0)
+    return LeftMotor.position(degrees) < distance;
+  else
+    return LeftMotor.position(degrees) > -distance;
 }
 
-bool c2(float timeout) {
-  float timerduration;
-  if (timeout == 0) {
+bool hasNotTimedOut(float timeout) {
+  if (timeout == 0)
     return true;
-  } else {
-    now = Brain.Timer.value();
-    timerduration = now - start;
-    if (timerduration > timeout) {
-      return false;
-    } else {
-      return true;
-    }
-  }
+  return (Brain.Timer.value() - start) <= timeout;
 }
 
-bool c3(bool stalldetection) {
-  if (stalldetection) {
-    if (LeftMotor.current(amp) > 0.87 && LeftMotor.velocity(percent) == 0) {
-      // checks whether its on a wall or stuck (same logic as the is
-      // roller stuck function)
-      Brain.playSound(tada);
-      return false; // stuck or on wall
-    } else {
-      return true; // not stuck or on wall
-    }
-  } else {
-    return true; // not stuck or on wall
+bool hasNotStalled(bool stalldetection) {
+  if (!stalldetection)
+    return true;
+  if (LeftMotor.current(amp) > 0.87 && LeftMotor.velocity(percent) == 0) {
+    Brain.playSound(tada);
+    return false;
   }
+  return true;
 }
 
 void steering(float steering, float velocity) {
@@ -705,14 +690,15 @@ void Pid(float distance, float heading, int velocity, float kp, float timeout,
   LeftMotor.setStopping(brake);
   RightMotor.setStopping(brake);
   // printf("kp is: %.2f\n", kp);
-  while (c1(velocity, distance) && c2(timeout) && c3(stalldetection)) {
+  while (hasNotReachedDistance(velocity, distance) && hasNotTimedOut(timeout) &&
+         hasNotStalled(stalldetection)) {
     error = heading - BrainInertial.rotation(degrees);
     // printf("Inertial %f\n", BrainInertial.rotation(degrees));
     output = kp * error;
     movechassis(velocity, output);
 
     // printf("Error: %f\n", error);
-    wait(20, msec);
+    wait(12, msec);
   }
 
   LeftMotor.setStopping(coast);
@@ -728,7 +714,7 @@ void Preciseturn(float heading, int velocity, float momentum, float timeout,
   if (heading > BrainInertial.rotation()) {
     // this means that is is turning clockwise
     while (heading - momentum > BrainInertial.rotation(degrees) &&
-           c2(timeout) && c3(stalldetection)) {
+           hasNotTimedOut(timeout) && hasNotStalled(stalldetection)) {
       LeftMotor.setVelocity(velocity, percent);
       RightMotor.setVelocity(velocity, percent);
 
@@ -736,8 +722,8 @@ void Preciseturn(float heading, int velocity, float momentum, float timeout,
       wait(20, msec);
     }
   } else {
-    while (heading + momentum < BrainInertial.rotation() && c2(timeout) &&
-           c3(stalldetection)) {
+    while (heading + momentum < BrainInertial.rotation() &&
+           hasNotTimedOut(timeout) && hasNotStalled(stalldetection)) {
       LeftMotor.setVelocity(velocity, percent);
       RightMotor.setVelocity(velocity, percent);
 
@@ -761,8 +747,7 @@ void raisefrontarmtostandoffheight() {
   FrontArmMotor1.spinToPosition(3, degrees, false);
   FrontArmMotor2.spinToPosition(3, degrees, false);
   wait(0.1, seconds);
-  frontarmmotorgroup.spinToPosition(350, degrees, false);
-  extendclawbalancer();
+  frontarmmotorgroup.spinToPosition(262, degrees, false);
 }
 
 void lowerfrontarmfromstandoffheight() {
@@ -874,73 +859,82 @@ void part1() {
   Brain.setTimer(0, seconds);
   Pid(625, 0, velocity, kp, 0, false);
   wait(0.2, seconds);
-  frontclawleftclose();
-  Preciseturn(46, 28, 10, 0, false);
-  frontclawleftopen();
-  Pid(500, 46, velocity, kp, 0, false);
+  frontclawclose();
+  Preciseturn(44, 28, 10, 0, false);
+  frontclawopen();
+  Pid(455, 44, velocity, kp, 0, false);
   isfrontclawup = false;
-  frontclawleftclose();
+  frontclawclose();
   wait(0.1, seconds);
   stackpins();
   isfrontclawup = true;
   // Pid(40, 44, -velocity, kp, 0, false);
   Preciseturn(93.5, 30, 10, 0, false);
-  Pid(215, 93.5, velocity, kp, 0, false);
-  Pid(310, 119.5, velocity, kp, 0, false);
+  Pid(215, 95, velocity, kp, 0, false);
+  Pid(310, 125, velocity, kp, 0, false);
   stackpins();
   Pid(45, 105, velocity, kp, 0, false);
   frontclawleftclose();
-  Pid(279, 116, -45, kp, 0, false); // 280 no work 210 no work
+  frontclawrightclose();
+  Pid(394, 116, -45, kp, 0, false); // 280 no work 210 no work
   Preciseturn(174, 25, 15, 0, false);
   wait(0.2, seconds);
   Preciseturn(175, 25, 15, 0, false);
   BackArmMotorGroup.spin(reverse);
   wait(0.15, seconds);
   BackArmMotorGroup.stop();
-  Pid(450, 181, -65, kp, 1.1, false);
+  Pid(475, 181, -65, kp, 1.4, false);
+  Pid(75, 181, 65, kp, 1.4, false);
+  LeftMotor.setVelocity(100, percent);
+  RightMotor.setVelocity(100, percent);
+  LeftMotor.spin(reverse);
+  RightMotor.spin(reverse);
+  wait(0.5, seconds);
+  LeftMotor.stop();
+  RightMotor.stop();
+  // Pid(100, 180, -100, kp, 1, false);
   closefinger();
-  Pid(150, 180, 35, kp, 1.1, false);
+  wait(0.3, seconds);
+  Pid(185, 180, 35, kp, 1.1, false);
   wait(0.25, seconds);
   dumppinsontobeam();
   Preciseturn(208.5, 30, 14.5, 0, false);
   // debug();
   wait(0.15, seconds);
-  Pid(250, 210.5, velocity, kp, 0, false);
+  Pid(250, 205, velocity, kp, 0, false);
   frontclawleftclose();
-  // isfrontclawup = false;
-  // stackpins();
-  // Preciseturn(265, 55, 10, 0, false);
-  // Pid(255, 266, velocity, kp, 0, false);
-  // isfrontclawup = true;
-  // stackpins();
-  // Pid(50, 275, velocity, kp, 0, false);
-  // frontclawleftclose();
-  // Preciseturn(240, 40, 10, 0, false);
-  // Pid(605, 250, -velocity, kp, 0, false);
-  Pid(220, 218, -velocity, kp, 0, false);
+  Pid(245, 218, -velocity, kp, 0, false);
   // wait(0.25, seconds);
+  deployguide();
   raisefrontarmtostandoffheight();
-  Preciseturn(188, 35, 10, 0, false);
+  Preciseturn(185, 35, 10, 0, false);
   wait(0.5, seconds);
-  Pid(575, 189, velocity, kp, 1.35, false);
-  LeftMotor.setStopping(hold);
-  RightMotor.setStopping(hold);
-  RightMotor.stop();
-  LeftMotor.stop();
-  frontarmmotorgroup.setVelocity(76, percent);
-  frontarmmotorgroup.spinToPosition(200, degrees, false);
-  while (frontarmmotorgroup.position(degrees) > 330) {
-    wait(20, msec);
-  }
+  Pid(600, 185, 65, kp, 2.25, false);
+  wait(0.15, seconds);
+  RightMotor.setVelocity(100, percent);
+  LeftMotor.setVelocity(100, percent);
+  LeftMotor.spin(forward);
+  RightMotor.spin(forward);
+  frontarmmotorgroup.setVelocity(80, percent);
+  frontarmmotorgroup.spin(reverse);
+  RightMotor.setVelocity(100, percent);
+  LeftMotor.setVelocity(100, percent);
+  LeftMotor.spin(forward);
+  RightMotor.spin(forward);
+  wait(0.35, seconds);
   frontclawopen();
-  frontarmmotorgroup.setVelocity(100, percent);
+  frontarmmotorgroup.spinToPosition(165, degrees, false); // 195 original value
   LeftMotor.setStopping(brake);
   RightMotor.setStopping(brake);
+  wait(0.265, seconds);
   Pid(160, 180, -velocity, kp, 0, false);
+  retractguide();
+  wait(0.15, seconds);
   frontarmmotorgroup.setTimeout(1.5, seconds);
   frontarmmotorgroup.spinToPosition(6.7, degrees, false);
   frontarmmotorgroup.setStopping(brake);
-  Preciseturn(30, 40, 10, 0, false);
+  retractguide();
+  Preciseturn(25, 40, 10, 0, false);
   wait(0.2, seconds);
   raisebackarmtoministandoffstack();
   // Pid(7000, -5, -40, kp, 2.5, false);
@@ -967,18 +961,19 @@ void part1() {
   // LeftMotor.stop();
   // RightMotor.stop();
   // grabstartingpin();
-  frontclawleftclose();
+  frontclawclose();
   Pid(700, 10, velocity, kp, 2, false);
   spinbackarmdown();
   Pid(100, 0, -velocity, kp, 0, false);
   frontclawleftopen();
+  frontclawrightopen();
   Preciseturn(100, 30, 10, 0, false);
   backarmstop();
-  Pid(665, 107.5, velocity, kp, 0, false);
-  frontclawleftclose();
+  Pid(655, 107.5, velocity, kp, 0, false);
+  frontclawclose();
   Pid(102, 100, -velocity, kp, 0, false);
   Preciseturn(78.5, 30, 10, 0, false);
-  frontclawleftopen();
+  frontclawopen();
   Pid(650, 80, velocity, kp, 2, false);
   Brain.playSound(siren);
   frontclawleftclose();
@@ -1023,15 +1018,6 @@ void part1() {
   Pid(160, 359, -velocity, kp, 0, false);
   printf("time is %.2f\n", Brain.Timer.value());
   stack91();
-  // frontclawleftclose();
-  // isfrontclawup = false;
-  // stackpins();
-  // Preciseturn(186, 10, 10, 0, false);
-  // Pid(175, 180, velocity, kp, 1.5, false);
-  // isfrontclawup = true;
-  // stackpins();
-  // wait(7, seconds);
-  // part2();
 
   debug();
 
@@ -1071,7 +1057,6 @@ void part1() {
   frontclawleftclose();
   frontarmmotorgroup.setStopping(hold);
   frontarmmotorgroup.spinToPosition(92, degrees, false);
-  retractclawbalancer();
   Pid(800, 190, velocity, kp, 2, false); // 0.95
   frontclawleftopen();
   // debug();
@@ -1180,14 +1165,10 @@ void part2() {
 }
 
 void autofunc() {
-  // Pid(1500, 0, velocity, kp, 0, false);
   part1();
-  // wait(5, seconds);
-  // part1();
-  // part2();
   printf("timer is %.2f\n", Brain.Timer.value());
 }
-
+void testfunc() { Pid(1250, 0, velocity, kp, 0, false); }
 int main() {
   pumpoff();
   BrainInertial.calibrate();
@@ -1197,7 +1178,7 @@ int main() {
   inital();
   pumpon();
   // eventraisebackarmtonest = event(raisebackarmtonest);
-  Controller.ButtonR3.pressed(part1);
+  Controller.ButtonR3.pressed(testfunc);
   Controller.ButtonL3.pressed(part2);
   Controller.ButtonFUp.pressed(autofunc);
   Controller.ButtonEUp.pressed(dumppinsontobeam);
